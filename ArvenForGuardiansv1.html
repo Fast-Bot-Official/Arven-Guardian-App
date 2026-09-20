@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arven for Guardians</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+<style>
+:root{--primary:#2563eb;--bg:#f8fafc;--card:#fff;--text:#172033;--muted:#64748b;--border:#e2e8f0;--danger:#ef4444;--ok:#10b981}
+*{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,sans-serif}body{margin:0;background:var(--bg);color:var(--text);min-height:100vh}
+.hidden{display:none!important}.app{min-height:100vh;display:flex;flex-direction:column}.top{height:68px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:10}.brand{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--primary)}.brand img{width:38px;height:38px;border-radius:11px}.wrap{width:min(1050px,94vw);margin:28px auto 50px}.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:24px;box-shadow:0 8px 28px rgba(15,23,42,.06);margin-bottom:18px}.center{text-align:center}.logo{width:66px;height:66px;border-radius:18px;object-fit:contain}.h{font-size:1.35rem;font-weight:800;margin:10px 0}.muted{color:var(--muted);line-height:1.6}.btn{border:0;border-radius:10px;padding:11px 15px;background:var(--primary);color:#fff;font-weight:700;cursor:pointer}.btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}.btn.danger{background:var(--danger)}.btn.ok{background:var(--ok)}.btn:disabled{opacity:.55;cursor:not-allowed}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.input,.select{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;color:var(--text);outline:none}.field{margin:12px 0}.field label{display:block;font-size:.82rem;font-weight:700;margin-bottom:6px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}.child{border:1px solid var(--border);border-radius:16px;padding:18px;cursor:pointer;transition:.2s}.child:hover{border-color:var(--primary);transform:translateY(-1px)}.pill{display:inline-flex;padding:4px 9px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:.75rem;font-weight:700}.metric{font-size:1.8rem;font-weight:800;margin:6px 0}.code{font-size:1.65rem;letter-spacing:4px;font-weight:800;text-align:center;padding:18px;border:1px dashed var(--primary);border-radius:14px;background:#eff6ff;color:#1d4ed8;word-break:break-all}.toast{position:fixed;right:18px;bottom:18px;background:#111827;color:#fff;padding:12px 16px;border-radius:10px;z-index:50;box-shadow:0 10px 30px rgba(0,0,0,.2)}.auth{width:min(430px,94vw);margin:9vh auto}.auth h1{margin-bottom:4px}.danger-note{color:#b91c1c;background:#fef2f2;border:1px solid #fecaca;padding:11px;border-radius:10px;font-size:.86rem}.bar{height:8px;background:#e2e8f0;border-radius:999px;overflow:hidden}.bar span{display:block;height:100%;background:var(--primary)}@media(max-width:600px){.top{padding:0 14px}.wrap{width:92vw;margin-top:18px}.card{padding:18px}}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div id="root"></div>
+<script>
+'use strict';
+const firebaseConfig={apiKey:"AIzaSyAqzMX2aMJC9vPTKkGZhL5i3Bjemd0aa9E",authDomain:"arvenai.firebaseapp.com",projectId:"arvenai",storageBucket:"arvenai.firebasestorage.app",messagingSenderId:"839108518515",appId:"1:839108518515:web:1f7f061959569cbed94006"};
+const BACKEND=(window.ARVEN_BACKEND_URL||'https://arven-backend-m6ft.onrender.com').replace(/\/$/,'');
+const LOGO='https://res.cloudinary.com/dgdaqwfib/image/upload/v1789358733/file_000000000214823095ab2b71e10e1990_cyerjd.png';
+firebase.initializeApp(firebaseConfig);const auth=firebase.auth();auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
+let user=null,state=null,selected=null;
+
+const root=document.getElementById('root');
+const toastEl=document.getElementById('toast');
+function toast(m){toastEl.innerHTML='<div class="toast">'+esc(m)+'</div>';setTimeout(()=>toastEl.innerHTML='',2800)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+async function api(path,method='GET',body){
+  if(!user)throw new Error('Please sign in.');
+  const r=await fetch(BACKEND+path,{method,headers:{Authorization:'Bearer '+await user.getIdToken(),...(body!==undefined?{'Content-Type':'application/json'}:{})},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});
+  let d={};try{d=await r.json()}catch(_){}
+  if(!r.ok)throw Object.assign(new Error(d?.message||d?.error||'Request failed'),{code:d?.code,status:r.status,data:d});
+  return d;
+}
+function render(html){root.innerHTML=html}
+function authView(){
+render(`<div class="auth"><div class="card center"><img class="logo" src="${LOGO}"><div class="h">Arven for Guardians</div><p class="muted">Sign in to manage connected child accounts.</p><div class="field"><input id="email" class="input" type="email" placeholder="Email"></div><div class="field"><input id="password" class="input" type="password" placeholder="Password"></div><div class="row"><button class="btn" id="signin">Sign in</button><button class="btn secondary" id="signup">Create account</button></div><p class="muted" style="font-size:.78rem">Guardian accounts must be 13 or older.</p></div></div>`);
+document.getElementById('signin').onclick=()=>authAction(false);document.getElementById('signup').onclick=()=>authAction(true);
+}
+async function authAction(create){
+const email=document.getElementById('email').value.trim(),password=document.getElementById('password').value;
+try{user=create?(await auth.createUserWithEmailAndPassword(email,password)).user:(await auth.signInWithEmailAndPassword(email,password)).user}catch(e){toast(e.message);return}
+await boot();
+}
+async function ageView(){
+render(`<div class="auth"><div class="card center"><img class="logo" src="${LOGO}"><div class="h">Guardian eligibility</div><p class="muted">Enter your age. Guardian accounts must be 13 or older.</p><input id="age" class="input" type="number" min="1" max="130" placeholder="Age"><button class="btn" id="agego" style="margin-top:12px;width:100%">Continue</button><button class="btn secondary" id="logout" style="margin-top:8px;width:100%">Logout</button></div></div>`);
+document.getElementById('agego').onclick=async()=>{const age=Number(document.getElementById('age').value);if(!Number.isInteger(age)||age<1||age>130)return toast('Enter an age from 1 to 130.');try{await api('/account/v25/age','POST',{age});await boot()}catch(e){toast(e.message)}};
+document.getElementById('logout').onclick=()=>auth.signOut();
+}
+async function blockedView(){
+render(`<div class="auth"><div class="card center"><img class="logo" src="${LOGO}"><div class="h">Guardian app unavailable</div><p class="muted">Minors under 13 cannot use Arven for Guardians.</p><button class="btn secondary" id="logout" style="width:100%">Logout</button></div></div>`);document.getElementById('logout').onclick=()=>auth.signOut();
+}
+async function onboardingView(){
+render(`<div class="auth"><div class="card center"><img class="logo" src="${LOGO}"><div class="h">Guardian privacy & controls</div><p class="muted">While connected, you can view a child's Arven screen time, set a daily screen-time limit, stop Arven for the rest of the day, cancel that stop, and disconnect the account. This dashboard does not automatically provide access to the child's private conversations.</p><button class="btn" id="understand" style="width:100%">Continue</button><button class="btn secondary" id="logout" style="width:100%;margin-top:8px">Logout</button></div></div>`);
+document.getElementById('understand').onclick=async()=>{try{await api('/guardian/onboarding','POST',{});await boot()}catch(e){toast(e.message)}};document.getElementById('logout').onclick=()=>auth.signOut();
+}
+function formatTime(sec){sec=Math.max(0,Math.floor(Number(sec)||0));const h=Math.floor(sec/3600),m=Math.floor(sec%3600/60),s=sec%60;return h?`${h}h ${m}m`:m?`${m}m ${s}s`:`${s}s`}
+function childCard(c){
+const limit=c.controls?.limitMinutes?c.controls.limitMinutes*60:null,total=c.controls?.totalSeconds||0,percent=limit?Math.min(100,total/limit*100):0;
+return `<div class="child" data-uid="${esc(c.uid)}"><div class="row" style="justify-content:space-between"><strong>${esc(c.displayName||'Child')}</strong><span class="pill">${c.age?.effectiveAge||'?'} years</span></div><div class="metric">${formatTime(total)}</div><div class="muted" style="font-size:.8rem">Today's Arven screen time</div>${limit?`<div class="bar" style="margin-top:9px"><span style="width:${percent}%"></span></div><div class="muted" style="font-size:.75rem;margin-top:5px">${formatTime(total)} / ${formatTime(limit)}</div>`:'<div class="muted" style="font-size:.8rem;margin-top:7px">No daily limit set</div>'}${c.controls?.stopped?'<div class="danger-note" style="margin-top:10px">Stopped for today</div>':''}</div>`
+}
+async function dashboard(){
+const d=await api('/guardian/children');state=d;
+render(`<div class="app"><header class="top"><div class="brand"><img src="${LOGO}">Arven for Guardians</div><button class="btn secondary" id="logout">Logout</button></header><main class="wrap"><div class="card"><div class="row" style="justify-content:space-between"><div><div class="h">Guardian dashboard</div><div class="muted">Manage up to 6 connected children.</div></div><button class="btn" id="code">Generate connection code</button></div><div id="codebox" style="margin-top:15px"></div></div><div class="grid" id="children">${d.children?.length?d.children.map(childCard).join(''):'<div class="card"><div class="h">No children connected</div><div class="muted">Generate a connection code and give it to the child in Arven.</div></div>'}</div></main></div>`);
+document.getElementById('logout').onclick=()=>auth.signOut();
+document.getElementById('code').onclick=async()=>{try{const x=await api('/guardian/code','POST',{});document.getElementById('codebox').innerHTML=`<div class="code">${esc(x.code)}</div><p class="muted center">Code expires in about 30 minutes. Enter it on the child's Arven screen.</p>`;toast('Connection code generated')}catch(e){toast(e.message)}};
+document.querySelectorAll('.child').forEach(el=>el.onclick=()=>openChild(el.dataset.uid));
+}
+async function openChild(uid){
+selected=(state.children||[]).find(c=>c.uid===uid);if(!selected)return;
+const c=selected,ctrl=c.controls||{};
+render(`<div class="app"><header class="top"><div class="brand"><img src="${LOGO}">Arven for Guardians</div><button class="btn secondary" id="back">Back</button></header><main class="wrap"><div class="card"><div class="h">${esc(c.displayName||'Child')}</div><div class="muted">Connected child account</div><div class="grid" style="margin-top:15px"><div><div class="metric">${formatTime(ctrl.totalSeconds||0)}</div><div class="muted">Today's screen time</div></div><div><div class="metric">${ctrl.limitMinutes?formatTime(ctrl.limitMinutes*60):'No limit'}</div><div class="muted">Daily limit</div></div></div></div><div class="card"><div class="h">Child name</div><div class="field"><input id="name" class="input" value="${esc(c.displayName||'Child')}"></div><button class="btn" id="saveName">Save name</button></div><div class="card"><div class="h">Daily Arven screen-time limit</div><div class="row"><input id="limitValue" class="input" style="flex:1;min-width:150px" type="number" min=".0167" step=".0167" value="${ctrl.limitMinutes||''}" placeholder="Amount"><select id="limitUnit" class="select" style="width:150px"><option value="minutes">Minutes</option><option value="seconds">Seconds</option><option value="hours">Hours</option></select></div><button class="btn" id="saveLimit" style="margin-top:10px">Set limit</button><p class="muted" style="font-size:.78rem">Maximum: 20 hours. The timer freezes when the child leaves Arven.</p></div><div class="card"><div class="h">Stop Arven for the rest of today</div><div class="field"><textarea id="message" class="input" rows="3" placeholder="Optional personal message"></textarea></div><div class="row"><button class="btn danger" id="stop">Stop for today</button><button class="btn ok" id="cancel">Cancel stop</button></div></div><div class="card"><div class="h">Disconnect account</div><p class="muted">The child will return to the guardian-required screen until another guardian connects.</p><button class="btn danger" id="disconnect">Disconnect</button></div></main></div>`);
+document.getElementById('back').onclick=dashboard;
+document.getElementById('saveName').onclick=async()=>{try{await api('/guardian/children/'+encodeURIComponent(uid),'PATCH',{displayName:document.getElementById('name').value});toast('Child name updated');await dashboard()}catch(e){toast(e.message)}};
+document.getElementById('saveLimit').onclick=async()=>{const n=Number(document.getElementById('limitValue').value),unit=document.getElementById('limitUnit').value;if(!(n>0))return toast('Enter a positive limit.');let minutes=unit==='hours'?n*60:unit==='seconds'?n/60:n;if(minutes>1200)return toast('The maximum is 20 hours.');try{await api('/guardian/children/'+encodeURIComponent(uid),'PATCH',{dailyLimitMinutes:minutes});toast('Screen-time limit saved');await dashboard()}catch(e){toast(e.message)}};
+document.getElementById('stop').onclick=async()=>{try{await api('/guardian/children/'+encodeURIComponent(uid),'PATCH',{stopForDay:true,message:document.getElementById('message').value});toast('Arven stopped for today');await openChild(uid)}catch(e){toast(e.message)}};
+document.getElementById('cancel').onclick=async()=>{try{await api('/guardian/children/'+encodeURIComponent(uid),'PATCH',{stopForDay:false});toast('Stop cancelled');await openChild(uid)}catch(e){toast(e.message)}};
+document.getElementById('disconnect').onclick=async()=>{if(!confirm('Disconnect this child account?'))return;try{await api('/guardian/children/'+encodeURIComponent(uid)+'/disconnect','POST',{});toast('Connection disconnected');await dashboard()}catch(e){toast(e.message)}};
+}
+async function boot(){
+if(!user){authView();return}
+try{
+const p=await api('/guardian/profile');
+if(p.ageMissing){await ageView();return} if(!p.eligible){await blockedView();return}
+const on=await api('/guardian/onboarding');
+if(!on.understood){await onboardingView();return}
+await dashboard();
+}catch(e){
+if(e?.code==='AGE_VERIFICATION_REQUIRED'){await ageView();return}
+if(e?.code==='GUARDIAN_NOT_ELIGIBLE'){await blockedView();return}
+toast(e.message);authView();
+}
+}
+auth.onAuthStateChanged(async u=>{user=u;await boot()});
+</script>
+</body>
+</html>
